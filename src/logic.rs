@@ -14,6 +14,7 @@ use log::info;
 use rand::seq::SliceRandom;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use smallvec::SmallVec;
 
 use crate::{Battlesnake, Board, Coord, Direction, Game};
 
@@ -21,6 +22,8 @@ const BOARD_SIZE: usize = 11;
 const DENSE_BOARD_LENGTH: usize = BOARD_SIZE + 2;
 const DENSE_BOARD_SIZE: usize = DENSE_BOARD_LENGTH * 2;
 const PLAYER_COUNT: usize = 4;
+
+const HAS_FRUIT: i32 = -16;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DenseBoard<T>
@@ -45,7 +48,7 @@ where
   }
 
   fn get_xy_mut(&mut self, x: isize, y: isize) -> &mut T {
-    &mut self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
+    &mut self.board[(y as usize + 1) * (BOARD_SIZE + 2) + (x as usize + 1)]
   }
 
   fn get_coord(&self, c: Coord) -> T {
@@ -63,15 +66,17 @@ struct Node {
   board: DenseBoard<i32>,
   heads: [Coord; PLAYER_COUNT],
   lengths: [i32; PLAYER_COUNT],
+  our_health: i32,
 }
 
 impl Node {
-  fn new(turn: i32, board: DenseBoard<i32>) -> Node {
+  fn new(turn: i32, api_board: &Board, our_health: i32) -> Node {
     Node {
       turn,
       board,
       heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT],
       lengths: [0; PLAYER_COUNT],
+      our_health
     }
   }
 
@@ -92,7 +97,36 @@ impl Node {
       Direction::Right => new_node.heads[snake_idx].x += 1,
     }
     *new_node.board.get_coord_mut(self.heads[snake_idx]) = self.lengths[snake_idx] + self.turn;
+    if new_node.board.get_coord(new_node.heads[snake_idx]) == HAS_FRUIT {
+      new_node.our_health = 100;
+    }
     new_node
+  }
+  
+  fn is_head_colliding_snake(&self, snake_idx: usize) -> bool {
+    let Coord { x, y } = self.heads[snake_idx];
+    self.board.get_xy((x - 1) as isize, y as isize) > self.turn
+      || self.board.get_xy((x + 1) as isize, y as isize) > self.turn
+      || self.board.get_xy(x as isize, (y - 1) as isize) > self.turn
+      || self.board.get_xy(x as isize, (y + 1) as isize) > self.turn
+  }
+
+  fn apply_move_array(&self, directions: &SmallVec<[Direction; (PLAYER_COUNT - 1)]>) -> Node {
+    let mut node = self.apply_move(1, directions[0]);
+    for i in 2..PLAYER_COUNT {
+      node = self.apply_move(i, directions[i - 1]);
+    }
+    node.turn += 1;
+    node.our_health -= 1;
+    node
+  }
+
+  fn evaluate(&self) -> i32 {
+    if self.is_head_colliding_wall(0) || self.is_head_colliding_snake(0) || self.our_health <= 2 {
+      -10000000000 + self.turn
+    } else {
+      self.our_health
+    }
   }
 }
 
@@ -164,6 +198,51 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
   return voronoi_scores;
 }
 
+const PLAYER_ID: i32 = 0;
+fn alphabeta(node: Node, depth: i32, mut alpha: i32, mut beta: i32, maximising_player: bool) -> i32{
+    if depth == 0 {
+        return node.evaluate();
+    }
+    if maximising_player {
+        let mut value = -10000;
+        for my_dir in [Direction::Up, Direction::Down, Direction::Left, Direction::Right].iter() {
+            let new_node = node.apply_move(0, *my_dir);
+            value = std::cmp::max(value, alphabeta(new_node, depth - 1, alpha, beta, false));
+            if value >= beta {
+                break;
+            }
+            alpha = std::cmp::max(alpha, value);
+        }
+        return value;
+    }
+    else{
+        let mut value = 10000;
+        let mut enemy_turns = Vec::<SmallVec<[Direction; (PLAYER_COUNT - 1)]>>::new(); // [ [U, U], [U, D], ... ]
+      for i in 1..node.heads.len() {
+        // for every snake, copy all the enemy moves and append the new move
+        let mut new_enemy_turns = Vec::new();
+        for enemy_turn in enemy_turns.iter(){
+          for my_move in [Direction::Up, Direction::Down, Direction::Left, Direction::Right].iter(){
+            let mut new_turn = enemy_turn.clone();
+            new_turn.push(*my_move);
+            new_enemy_turns.push(new_turn);
+          }
+        }
+        enemy_turns = new_enemy_turns;
+      }
+      for enemy_turn in enemy_turns.iter(){
+            let new_node = node.apply_move_array(enemy_turn);
+            value = std::cmp::min(value, alphabeta(new_node, depth - 1, alpha, beta, true));
+            if value <= alpha{
+                break;
+            }
+            beta = std::cmp::min(beta, value);
+        }
+        return value;
+    }
+}
+
+
 fn print_board(board: &DenseBoard<i32>) {
   for x in -1..(BOARD_SIZE as i32 + 1) {
     for y in -1..(BOARD_SIZE as i32 + 1) {
@@ -176,6 +255,22 @@ fn print_board(board: &DenseBoard<i32>) {
     }
     println!();
   }
+}
+
+pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
+  let board = Node::new(*turn, board);
+  let mut best_move = Direction::Up;
+  let mut best_score = alphabeta(board.apply_move(0, best_move), 5, i32::MIN, i32::MAX, false);
+
+  for direction in [Direction::Down, Direction::Left, Direction::Right] {
+    let score = alphabeta(board.apply_move(0, direction), 5, i32::MIN, i32::MAX, false);
+    if score > best_score {
+      best_score = score;
+      best_move = direction;
+    }
+  }
+
+  Some(best_move)
 }
 
 // move is called on every turn and returns your next move

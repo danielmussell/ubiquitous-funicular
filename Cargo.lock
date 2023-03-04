@@ -1085,6 +1085,7 @@ dependencies = [
  "rocket",
  "serde",
  "serde_json",
+ "smallvec",
 ]
 
 [[package]]
