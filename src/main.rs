@@ -45,14 +45,14 @@ pub struct Battlesnake {
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct Coord {
-  x: u32,
-  y: u32,
+  x: i32,
+  y: i32,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct GameState {
   game: Game,
-  turn: u32,
+  turn: i32,
   board: Board,
   you: Battlesnake,
 }
