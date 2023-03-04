@@ -66,8 +66,9 @@ impl GameState {
   fn new(turn: u32, board: &Board) -> GameState {
     let mut area = DenseBoard::init(0);
     GameState {
-      turn: turn as u16,
-      area,
+	turn: turn as u16,
+	area,
+	heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT]
     }
   }
 }
