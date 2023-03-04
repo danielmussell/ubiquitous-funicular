@@ -15,33 +15,60 @@ use rand::seq::SliceRandom;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use crate::{Battlesnake, Board, Game, Direction, Coord};
+use crate::{Battlesnake, Board, Coord, Direction, Game};
 
 const BOARD_SIZE: usize = 11;
+const DENSE_BOARD_LENGTH: usize = BOARD_SIZE + 2;
+const DENSE_BOARD_SIZE: usize = DENSE_BOARD_LENGTH * 2;
+const PLAYER_COUNT: usize = 4;
 
 pub struct DenseBoard<T>
-where T: Clone + Copy
+where
+    T: Clone + Copy,
 {
-    board: [T; (BOARD_SIZE + 2) * (BOARD_SIZE + 2)]
+    board: [T; (BOARD_SIZE + 2) * (BOARD_SIZE + 2)],
 }
 
 impl<T> DenseBoard<T>
-where T: Clone + Copy
+where
+    T: Clone + Copy,
 {
+    fn init(default: T) -> DenseBoard<T> {
+        DenseBoard {
+            board: [default; (BOARD_SIZE + 2) * (BOARD_SIZE + 2)],
+        }
+    }
+
     fn get_xy(&self, x: isize, y: isize) -> T {
-	self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
+        self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
     }
 
     fn get_xy_mut(&mut self, x: usize, y: usize) -> &mut T {
-	&mut self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
+        &mut self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
     }
 
     fn get_coord(&self, c: Coord) -> T {
-	self.get_xy(c.x as isize, c.y as isize)
+        self.get_xy(c.x as isize, c.y as isize)
     }
 
     fn get_coord_mut(&mut self, c: Coord) -> &mut T {
-	self.get_xy_mut(c.x as usize, c.y as usize)
+        self.get_xy_mut(c.x as usize, c.y as usize)
+    }
+}
+
+struct GameState {
+    turn: u16,
+    area: DenseBoard<u16>,
+    heads: [Coord; PLAYER_COUNT],
+}
+
+impl GameState {
+    fn new(turn: u32, board: &Board) -> GameState {
+        let mut area = DenseBoard::init(0);
+        GameState {
+            turn: turn as u16,
+            area,
+        }
     }
 }
 
