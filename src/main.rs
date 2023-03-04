@@ -1,3 +1,4 @@
+
 #[macro_use]
 extern crate rocket;
 
@@ -6,7 +7,7 @@ use rocket::fairing::AdHoc;
 use rocket::http::Status;
 use rocket::serde::{json::Json, Deserialize};
 use serde::Serialize;
-use serde_json::{Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::env;
 
@@ -57,6 +58,15 @@ pub struct GameState {
     you: Battlesnake,
 }
 
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
 #[get("/")]
 fn handle_index() -> Json<Value> {
     Json(logic::info())
@@ -76,14 +86,14 @@ fn handle_start(start_req: Json<GameState>) -> Status {
 
 #[post("/move", format = "json", data = "<move_req>")]
 fn handle_move(move_req: Json<GameState>) -> Json<Value> {
-    let response = logic::get_move(
+    let direction = logic::get_move(
         &move_req.game,
         &move_req.turn,
         &move_req.board,
         &move_req.you,
-    );
+    ).unwrap_or(Direction::Up);
 
-    Json(response)
+    Json(json!({ "move": direction }))
 }
 
 #[post("/end", format = "json", data = "<end_req>")]
