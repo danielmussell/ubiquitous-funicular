@@ -62,6 +62,7 @@ struct Node {
   turn: i32,
   area: DenseBoard<i32>,
   heads: [Coord; PLAYER_COUNT],
+  lengths: [i32; PLAYER_COUNT]
 }
 
 impl Node {
@@ -71,13 +72,14 @@ impl Node {
       turn: turn as i32,
       area,
       heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT],
+      lengths: [0; PLAYER_COUNT]
     }
   }
 
   /// True iff snake with give index can collide with a wall
   fn is_head_colliding_wall(&self, snake_idx: usize) -> bool {
-    self.heads[snake_idx].x == 0 || self.heads[snake_idx].x == (BOARD_SIZE - 1) as u32
-      || self.heads[snake_idx].y == 0 || self.heads[snake_idx].y == (BOARD_SIZE - 1) as u32
+    self.heads[snake_idx].x == 0 || self.heads[snake_idx].x == (BOARD_SIZE - 1) as i32
+      || self.heads[snake_idx].y == 0 || self.heads[snake_idx].y == (BOARD_SIZE - 1) as i32
   }
 
   fn apply_move(&self, snake_idx: usize, direction: Direction) -> Node {
@@ -88,7 +90,7 @@ impl Node {
       Direction::Left => new_node.heads[snake_idx].x -= 1,
       Direction::Right => new_node.heads[snake_idx].x += 1,
     }
-    *new_node.area.get_coord_mut(self.heads[snake_idx]) = self.length[snake_idx] + self.turn;
+    *new_node.area.get_coord_mut(self.heads[snake_idx]) = self.lengths[snake_idx] + self.turn;
     new_node
   }
 }
