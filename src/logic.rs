@@ -57,6 +57,7 @@ where
   }
 }
 
+#[derive(Copy, Clone)]
 struct Node {
   turn: i32,
   area: DenseBoard<i32>,
@@ -71,6 +72,24 @@ impl Node {
       area,
       heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT],
     }
+  }
+
+  /// True iff snake with give index can collide with a wall
+  fn is_head_colliding_wall(&self, snake_idx: usize) -> bool {
+    self.heads[snake_idx].x == 0 || self.heads[snake_idx].x == (BOARD_SIZE - 1) as u32
+      || self.heads[snake_idx].y == 0 || self.heads[snake_idx].y == (BOARD_SIZE - 1) as u32
+  }
+
+  fn apply_move(&self, snake_idx: usize, direction: Direction) -> Node {
+    let mut new_node = self.clone();
+    match direction {
+      Direction::Up => new_node.heads[snake_idx].y -= 1,
+      Direction::Down => new_node.heads[snake_idx].y += 1,
+      Direction::Left => new_node.heads[snake_idx].x -= 1,
+      Direction::Right => new_node.heads[snake_idx].x += 1,
+    }
+    *new_node.area.get_coord_mut(self.heads[snake_idx]) = self.length[snake_idx] + self.turn;
+    new_node
   }
 }
 
@@ -146,29 +165,30 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
 // move is called on every turn and returns your next move
 // Valid moves are "up", "down", "left", or "right"
 // See https://docs.battlesnake.com/api/example-move for available data
-pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
-  // We've included code to prevent your Battlesnake from moving backwards
-  let my_head = &you.body[0]; // Coordinates of your head
-  let my_neck = &you.body[1]; // Coordinates of your "neck"
-
+pub fn get_move(_game: &Game, turn: &i32, board: &Board, you: &Battlesnake) -> Option<Direction> {
+  // 1. Don't run into the wall
   let mut is_move_safe: HashMap<_, _> = vec![
-    (Direction::Up, my_neck.y <= my_head.y),
-    (Direction::Down, my_neck.y >= my_head.y),
-    (Direction::Left, my_neck.x >= my_head.x),
-    (Direction::Right, my_neck.x <= my_head.x),
+    (Direction::Up, you.head.y == 0),
+    (Direction::Down, you.head.y == BOARD_SIZE as i32 - 1),
+    (Direction::Left, you.head.x == 0),
+    (Direction::Right, you.head.y == BOARD_SIZE as i32 - 1),
   ]
   .into_iter()
   .collect();
 
-  // TODO: Step 1 - Prevent your Battlesnake from moving out of bounds
-  // let board_width = &board.width;
-  // let board_height = &board.height;
-
-  // TODO: Step 2 - Prevent your Battlesnake from colliding with itself
-  // let my_body = &you.body;
-
-  // TODO: Step 3 - Prevent your Battlesnake from colliding with other Battlesnakes
-  // let opponents = &board.snakes;
+  // 2. Don't run into other snakes (including ourselves)
+  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.y == you.head.y - 1)) {
+    *is_move_safe.get_mut(&Direction::Up).unwrap() = false;
+  }
+  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.y == you.head.y + 1)) {
+    *is_move_safe.get_mut(&Direction::Down).unwrap() = false;
+  }
+  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.x == you.head.x - 1)) {
+    *is_move_safe.get_mut(&Direction::Left).unwrap() = false;
+  }
+  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.x == you.head.x + 1)) {
+    *is_move_safe.get_mut(&Direction::Right).unwrap() = false;
+  }
 
   // Are there any safe moves left?
   let safe_moves = is_move_safe
@@ -181,7 +201,7 @@ pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> 
   let chosen = safe_moves.choose(&mut rand::thread_rng()).unwrap().clone();
 
   // TODO: Step 4 - Move towards food instead of random, to regain health and survive longer
-  // let food = &board.food;
+  let food = &board.food;
 
   info!("MOVE {}: {:?}", turn, chosen);
   return Some(chosen);
