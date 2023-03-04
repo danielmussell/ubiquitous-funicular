@@ -28,8 +28,8 @@ where T: Clone + Copy
 impl<T> DenseBoard<T>
 where T: Clone + Copy
 {
-    fn get_xy(&self, x: usize, y: usize) -> T {
-	self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
+    fn get_xy(&self, x: isize, y: isize) -> T {
+	self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
     }
 
     fn get_xy_mut(&mut self, x: usize, y: usize) -> &mut T {
@@ -37,7 +37,7 @@ where T: Clone + Copy
     }
 
     fn get_coord(&self, c: Coord) -> T {
-	self.get_xy(c.x as usize, c.y as usize)
+	self.get_xy(c.x as isize, c.y as isize)
     }
 
     fn get_coord_mut(&mut self, c: Coord) -> &mut T {
