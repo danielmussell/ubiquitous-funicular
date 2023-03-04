@@ -60,26 +60,27 @@ where
 #[derive(Copy, Clone)]
 struct Node {
   turn: i32,
-  area: DenseBoard<i32>,
+  board: DenseBoard<i32>,
   heads: [Coord; PLAYER_COUNT],
-  lengths: [i32; PLAYER_COUNT]
+  lengths: [i32; PLAYER_COUNT],
 }
 
 impl Node {
-  fn new(turn: i32, board: &Board) -> Node {
-    let mut area = DenseBoard::init(0);
+  fn new(turn: i32, board: DenseBoard<i32>) -> Node {
     Node {
-      turn: turn as i32,
-      area,
+      turn,
+      board,
       heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT],
-      lengths: [0; PLAYER_COUNT]
+      lengths: [0; PLAYER_COUNT],
     }
   }
 
   /// True iff snake with give index can collide with a wall
   fn is_head_colliding_wall(&self, snake_idx: usize) -> bool {
-    self.heads[snake_idx].x == 0 || self.heads[snake_idx].x == (BOARD_SIZE - 1) as i32
-      || self.heads[snake_idx].y == 0 || self.heads[snake_idx].y == (BOARD_SIZE - 1) as i32
+    self.heads[snake_idx].x == 0
+      || self.heads[snake_idx].x == (BOARD_SIZE - 1) as i32
+      || self.heads[snake_idx].y == 0
+      || self.heads[snake_idx].y == (BOARD_SIZE - 1) as i32
   }
 
   fn apply_move(&self, snake_idx: usize, direction: Direction) -> Node {
@@ -90,7 +91,7 @@ impl Node {
       Direction::Left => new_node.heads[snake_idx].x -= 1,
       Direction::Right => new_node.heads[snake_idx].x += 1,
     }
-    *new_node.area.get_coord_mut(self.heads[snake_idx]) = self.lengths[snake_idx] + self.turn;
+    *new_node.board.get_coord_mut(self.heads[snake_idx]) = self.lengths[snake_idx] + self.turn;
     new_node
   }
 }
@@ -137,7 +138,7 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
         not_done = false;
 
         let coord = Coord { x, y };
-        if node.area.get_coord(coord) - node.turn > 0 {
+        if node.board.get_coord(coord) - node.turn > 0 {
           continue;
         }
 
@@ -149,11 +150,11 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
         ];
 
         for test in tests.iter() {
-          if node.area.get_coord(*test) - node.turn < 0
+          if node.board.get_coord(*test) - node.turn < 0
             && owned_by.get_coord(*test) != MAGIC_NOT_OWNED
           {
             *owned_by.get_coord_mut(coord) = owned_by.get_coord(*test);
-            voronoi_scores[node.area.get_coord(*test) as usize] += 1;
+            voronoi_scores[node.board.get_coord(*test) as usize] += 1;
           }
           not_done = true;
         }
@@ -164,11 +165,37 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
   return voronoi_scores;
 }
 
+fn print_board(board: &DenseBoard<i32>) {
+  for x in 0..(BOARD_SIZE as i32) {
+    for y in 0..(BOARD_SIZE as i32) {
+      let coord = Coord { x, y };
+      print!("{:3}", board.get_coord(coord));
+    }
+    println!();
+  }
+}
+
 // move is called on every turn and returns your next move
 // Valid moves are "up", "down", "left", or "right"
 // See https://docs.battlesnake.com/api/example-move for available data
-pub fn get_move(_game: &Game, turn: &i32, board: &Board, you: &Battlesnake) -> Option<Direction> {
+pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
   // 1. Don't run into the wall
+  let mut board = DenseBoard::init(0);
+  for snake in _board.snakes.iter() {
+    for (i, body) in snake.body.iter().enumerate() {
+      *board.get_coord_mut(*body) = turn + snake.body.len() as i32 - i as i32;
+    }
+  }
+
+  let node = Node::new(*turn, board);
+
+  print_board(&board);
+  println!("turn: {}", turn);
+
+  // We've included code to prevent your Battlesnake from moving backwards
+  let my_head = &you.body[0]; // Coordinates of your head
+  let my_neck = &you.body[1]; // Coordinates of your "neck"
+
   let mut is_move_safe: HashMap<_, _> = vec![
     (Direction::Up, you.head.y == 0),
     (Direction::Down, you.head.y == BOARD_SIZE as i32 - 1),
@@ -179,16 +206,32 @@ pub fn get_move(_game: &Game, turn: &i32, board: &Board, you: &Battlesnake) -> O
   .collect();
 
   // 2. Don't run into other snakes (including ourselves)
-  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.y == you.head.y - 1)) {
+  if _board
+    .snakes
+    .iter()
+    .any(|s| s.body.iter().any(|b| b.y == you.head.y - 1))
+  {
     *is_move_safe.get_mut(&Direction::Up).unwrap() = false;
   }
-  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.y == you.head.y + 1)) {
+  if _board
+    .snakes
+    .iter()
+    .any(|s| s.body.iter().any(|b| b.y == you.head.y + 1))
+  {
     *is_move_safe.get_mut(&Direction::Down).unwrap() = false;
   }
-  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.x == you.head.x - 1)) {
+  if _board
+    .snakes
+    .iter()
+    .any(|s| s.body.iter().any(|b| b.x == you.head.x - 1))
+  {
     *is_move_safe.get_mut(&Direction::Left).unwrap() = false;
   }
-  if board.snakes.iter().any(|s| s.body.iter().any(|b| b.x == you.head.x + 1)) {
+  if _board
+    .snakes
+    .iter()
+    .any(|s| s.body.iter().any(|b| b.x == you.head.x + 1))
+  {
     *is_move_safe.get_mut(&Direction::Right).unwrap() = false;
   }
 
@@ -203,7 +246,7 @@ pub fn get_move(_game: &Game, turn: &i32, board: &Board, you: &Battlesnake) -> O
   let chosen = safe_moves.choose(&mut rand::thread_rng()).unwrap().clone();
 
   // TODO: Step 4 - Move towards food instead of random, to regain health and survive longer
-  let food = &board.food;
+  let food = &_board.food;
 
   info!("MOVE {}: {:?}", turn, chosen);
   return Some(chosen);
