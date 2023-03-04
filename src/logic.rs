@@ -13,7 +13,7 @@
 use log::info;
 use rand::seq::SliceRandom;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryInto};
 use smallvec::SmallVec;
 
 use crate::{Battlesnake, Board, Coord, Direction, Game};
@@ -71,6 +71,26 @@ struct Node {
 
 impl Node {
   fn new(turn: i32, api_board: &Board, our_health: i32) -> Node {
+      // build board
+  let mut board = DenseBoard::init(0);
+  for snake in api_board.snakes.iter() {
+    for (i, body) in snake.body.iter().enumerate() {
+      *board.get_coord_mut(Coord {
+        x: body.x as i32,
+        y: body.y as i32,
+      }) = turn + snake.body.len() as i32 - i as i32;
+    }
+  }
+
+  // create walls
+  for x in -1..(BOARD_SIZE as i32 + 1) {
+    *board.get_xy_mut(x as isize, -1) = i32::MAX;
+    *board.get_xy_mut(x as isize, BOARD_SIZE as isize) = i32::MAX;
+  }
+  for y in -1..(BOARD_SIZE as i32 + 1) {
+    *board.get_xy_mut(-1, y as isize) = i32::MAX;
+    *board.get_xy_mut(BOARD_SIZE as isize, y as isize) = i32::MAX;
+  }
     Node {
       turn,
       board,
@@ -123,7 +143,7 @@ impl Node {
 
   fn evaluate(&self) -> i32 {
     if self.is_head_colliding_wall(0) || self.is_head_colliding_snake(0) || self.our_health <= 2 {
-      -10000000000 + self.turn
+      -1000000000 + self.turn
     } else {
       self.our_health
     }
@@ -140,8 +160,8 @@ pub fn info() -> Value {
       "apiversion": "1",
       "author": "", // TODO: Your Battlesnake Username
       "color": "#e9ecef", // TODO: Choose color
-      "head": "default", // TODO: Choose head
-      "tail": "default", // TODO: Choose tail
+      "head": "rudolph", // TODO: Choose head
+      "tail": "mouse", // TODO: Choose tail
   });
 }
 
@@ -258,7 +278,7 @@ fn print_board(board: &DenseBoard<i32>) {
 }
 
 pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
-  let board = Node::new(*turn, board);
+  let board = Node::new(*turn, _board, you.health.try_into().unwrap());
   let mut best_move = Direction::Up;
   let mut best_score = alphabeta(board.apply_move(0, best_move), 5, i32::MIN, i32::MAX, false);
 
@@ -276,38 +296,12 @@ pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> 
 // move is called on every turn and returns your next move
 // Valid moves are "up", "down", "left", or "right"
 // See https://docs.battlesnake.com/api/example-move for available data
-pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
-  // build board
-  let mut board = DenseBoard::init(0);
-  for snake in _board.snakes.iter() {
-    for (i, body) in snake.body.iter().enumerate() {
-      *board.get_coord_mut(Coord {
-        x: body.x as i32,
-        y: body.y as i32,
-      }) = turn + snake.body.len() as i32 - i as i32;
-    }
-  }
+pub fn get_move_rand(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
+  let node = Node::new(*turn, _board, you.health.try_into().unwrap());
 
-  println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-
-  // create walls
-  for x in -1..(BOARD_SIZE as i32 + 1) {
-    *board.get_xy_mut(x as isize, -1) = i32::MAX;
-    *board.get_xy_mut(x as isize, BOARD_SIZE as isize) = i32::MAX;
-  }
-  for y in -1..(BOARD_SIZE as i32 + 1) {
-    *board.get_xy_mut(-1, y as isize) = i32::MAX;
-    *board.get_xy_mut(BOARD_SIZE as isize, y as isize) = i32::MAX;
-  }
-
-  let node = Node::new(*turn, board);
-
-  print_board(&board);
+  print_board(&node.board);
   println!("turn: {}", turn);
   println!("voronoi: {:?}", voronoi(&node));
-
-  // TODO remove later
-  return None;
 
   // 1. Don't run into the wall
 
