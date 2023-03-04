@@ -56,16 +56,16 @@ where
   }
 }
 
-struct GameState {
+struct Node {
   turn: u16,
   area: DenseBoard<u16>,
   heads: [Coord; PLAYER_COUNT],
 }
 
-impl GameState {
-  fn new(turn: u32, board: &Board) -> GameState {
+impl Node {
+  fn new(turn: u32, board: &Board) -> Node {
     let mut area = DenseBoard::init(0);
-    GameState {
+    Node {
 	turn: turn as u16,
 	area,
 	heads: [Coord { x: 0, y: 0 }; PLAYER_COUNT]
