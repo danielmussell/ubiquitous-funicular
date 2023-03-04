@@ -44,8 +44,8 @@ where
     self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
   }
 
-  fn get_xy_mut(&mut self, x: usize, y: usize) -> &mut T {
-    &mut self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
+  fn get_xy_mut(&mut self, x: isize, y: isize) -> &mut T {
+    &mut self.board[(y + 1) as usize * (BOARD_SIZE + 2) + (x + 1) as usize]
   }
 
   fn get_coord(&self, c: Coord) -> T {
@@ -53,7 +53,7 @@ where
   }
 
   fn get_coord_mut(&mut self, c: Coord) -> &mut T {
-    self.get_xy_mut(c.x as usize, c.y as usize)
+    self.get_xy_mut(c.x as isize, c.y as isize)
   }
 }
 
@@ -133,10 +133,9 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
   let mut not_done = true;
 
   while not_done {
+    not_done = false;
     for x in 0..(BOARD_SIZE as i32) {
       for y in 0..(BOARD_SIZE as i32) {
-        not_done = false;
-
         let coord = Coord { x, y };
         if node.board.get_coord(coord) - node.turn > 0 {
           continue;
@@ -150,13 +149,13 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
         ];
 
         for test in tests.iter() {
-          if node.board.get_coord(*test) - node.turn < 0
+          if node.board.get_coord(*test) - node.turn <= 0
             && owned_by.get_coord(*test) != MAGIC_NOT_OWNED
           {
             *owned_by.get_coord_mut(coord) = owned_by.get_coord(*test);
-            voronoi_scores[node.board.get_coord(*test) as usize] += 1;
+            voronoi_scores[owned_by.get_coord(coord) as usize] += 1;
+            not_done = true;
           }
-          not_done = true;
         }
       }
     }
@@ -166,10 +165,14 @@ fn voronoi(node: &Node) -> [i32; PLAYER_COUNT] {
 }
 
 fn print_board(board: &DenseBoard<i32>) {
-  for x in 0..(BOARD_SIZE as i32) {
-    for y in 0..(BOARD_SIZE as i32) {
+  for x in -1..(BOARD_SIZE as i32 + 1) {
+    for y in -1..(BOARD_SIZE as i32 + 1) {
       let coord = Coord { x, y };
-      print!("{:3}", board.get_coord(coord));
+      if board.get_coord(coord) == i32::MAX {
+        print!("{:3}", -1);
+      } else {
+        print!("{:3}", board.get_coord(coord));
+      }
     }
     println!();
   }
@@ -179,18 +182,39 @@ fn print_board(board: &DenseBoard<i32>) {
 // Valid moves are "up", "down", "left", or "right"
 // See https://docs.battlesnake.com/api/example-move for available data
 pub fn get_move(_game: &Game, turn: &i32, _board: &Board, you: &Battlesnake) -> Option<Direction> {
-  // 1. Don't run into the wall
+  // build board
   let mut board = DenseBoard::init(0);
   for snake in _board.snakes.iter() {
     for (i, body) in snake.body.iter().enumerate() {
-      *board.get_coord_mut(*body) = turn + snake.body.len() as i32 - i as i32;
+      *board.get_coord_mut(Coord {
+        x: body.x as i32,
+        y: body.y as i32,
+      }) = turn + snake.body.len() as i32 - i as i32;
     }
+  }
+
+  println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+  // create walls
+  for x in -1..(BOARD_SIZE as i32 + 1) {
+    *board.get_xy_mut(x as isize, -1) = i32::MAX;
+    *board.get_xy_mut(x as isize, BOARD_SIZE as isize) = i32::MAX;
+  }
+  for y in -1..(BOARD_SIZE as i32 + 1) {
+    *board.get_xy_mut(-1, y as isize) = i32::MAX;
+    *board.get_xy_mut(BOARD_SIZE as isize, y as isize) = i32::MAX;
   }
 
   let node = Node::new(*turn, board);
 
   print_board(&board);
   println!("turn: {}", turn);
+  println!("voronoi: {:?}", voronoi(&node));
+
+  // TODO remove later
+  return None;
+
+  // 1. Don't run into the wall
 
   // We've included code to prevent your Battlesnake from moving backwards
   let my_head = &you.body[0]; // Coordinates of your head
