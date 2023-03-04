@@ -15,7 +15,35 @@ use rand::seq::SliceRandom;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use crate::{Battlesnake, Board, Game, Direction};
+use crate::{Battlesnake, Board, Game, Direction, Coord};
+
+const BOARD_SIZE: usize = 11;
+
+pub struct DenseBoard<T>
+where T: Clone + Copy
+{
+    board: [T; (BOARD_SIZE + 2) * (BOARD_SIZE + 2)]
+}
+
+impl<T> DenseBoard<T>
+where T: Clone + Copy
+{
+    fn get_xy(&self, x: usize, y: usize) -> T {
+	self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
+    }
+
+    fn get_xy_mut(&mut self, x: usize, y: usize) -> &mut T {
+	&mut self.board[(y + 1) * (BOARD_SIZE + 2) + (x + 1)]
+    }
+
+    fn get_coord(&self, c: Coord) -> T {
+	self.get_xy(c.x as usize, c.y as usize)
+    }
+
+    fn get_coord_mut(&mut self, c: Coord) -> &mut T {
+	self.get_xy_mut(c.x as usize, c.y as usize)
+    }
+}
 
 // info is called when you create your Battlesnake on play.battlesnake.com
 // and controls your Battlesnake's appearance
@@ -26,7 +54,7 @@ pub fn info() -> Value {
     return json!({
         "apiversion": "1",
         "author": "", // TODO: Your Battlesnake Username
-        "color": "#888888", // TODO: Choose color
+        "color": "#9ecef", // TODO: Choose color
         "head": "default", // TODO: Choose head
         "tail": "default", // TODO: Choose tail
     });
